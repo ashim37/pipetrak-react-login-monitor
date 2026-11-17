@@ -1,0 +1,753 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PipeTrak React Login Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a field-ops console — summary strip on top, filters, then one dense roster table.
+   Colors follow the PipeTrak app theme (lib/theme/app_light_colors.dart,
+   app_dark_colors.dart, form_renderer/core/theme/form_theme.dart). */
+:root {
+  --bg: #f4f6f8;              /* AppLightColors.screenBackgroundColor */
+  --surface: #ffffff;         /* AppLightColors.backgroundColor / fieldBackgroundColor */
+  --field: #ffffff;           /* FormThemeData.fieldBackgroundColor (light) */
+  --fg: #212121;              /* FormThemeData.textColor (light) */
+  --muted: #757575;           /* FormThemeData.labelTextColor (light) */
+  --line: #dcdcdc;            /* AppLightColors.placeholderStrokeColor */
+  --accent: #1e4dde;          /* AppLightColors.buttonWithIconColor (primary) */
+  --accent-fg: #ffffff;
+  --accent-soft: #e6ebfb;     /* AppLightColors.navigationColor */
+  --brand: #0062a6;           /* AppLightColors.navigationTextColor */
+  --ok: #10a84b;              /* buttonSynced / bottomNavigationSelectedIconColor */
+  --warn: #f68e53;            /* buttonOrange */
+  --idle: #8f8f8f;
+  --danger: #f64949;          /* buttonConflict */
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23757575' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --field-h: 38px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #26272b; --surface: #2d2d2d; --field: #34373f; --fg: #e0e0e0; --muted: #b9b9b9; --line: #4a4c53;
+    --accent: #7894eb; --accent-fg: #000000; --accent-soft: #34373f; --brand: #7894eb;
+    --ok: #3aaa3d; --warn: #f68e53; --idle: #909090; --danger: #f64949;
+    --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23b9b9b9' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #26272b; --surface: #2d2d2d; --field: #34373f; --fg: #e0e0e0; --muted: #b9b9b9; --line: #4a4c53;
+  --accent: #7894eb; --accent-fg: #000000; --accent-soft: #34373f; --brand: #7894eb;
+  --ok: #3aaa3d; --warn: #f68e53; --idle: #909090; --danger: #f64949;
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23b9b9b9' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--fg);
+  font: 14px/1.5 var(--font-body);
+  padding-inline: 16px; padding-block: 20px 40px;
+}
+.wrap { max-width: 1240px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+
+header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; }
+h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; color: var(--brand); }
+.sub { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+.actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.stamp { color: var(--muted); font: 12px var(--font-data); }
+button {
+  font: 500 13px var(--font-body); color: var(--fg); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 6px; padding: 7px 12px; cursor: pointer;
+}
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button[disabled] { opacity: .6; cursor: progress; }
+
+.envs { display: flex; gap: 8px; flex-wrap: wrap; }
+.env {
+  display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 6px;
+  background: var(--surface); border: 1px solid var(--line); font-size: 12px;
+}
+.env b { font: 500 12px var(--font-data); letter-spacing: .04em; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--idle); flex: none; }
+.dot.ok { background: var(--ok); } .dot.err { background: var(--danger); } .dot.load { background: var(--warn); }
+.env .msg { color: var(--muted); }
+
+.summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.metric { background: var(--surface); padding: 14px 16px; display: flex; flex-direction: column; gap: 2px; }
+.metric .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .07em; }
+.metric .value { font: 500 26px var(--font-data); font-variant-numeric: tabular-nums; }
+.metric .note { color: var(--muted); font-size: 12px; }
+
+.breakdowns { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; min-width: 0; }
+.panel h2 { margin: 0 0 10px; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; }
+.bars { display: flex; flex-direction: column; gap: 7px; }
+.bar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; align-items: center; font-size: 13px; }
+.bar .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar .count { font: 12px var(--font-data); color: var(--muted); font-variant-numeric: tabular-nums; }
+.bar .track { grid-column: 1 / -1; height: 5px; background: var(--accent-soft); border-radius: 3px; overflow: hidden; }
+.bar .fill { height: 100%; background: var(--accent); }
+
+/* Filters: one row of equal-height fields; every label stacks the same way,
+   so inputs and selects share a baseline. */
+.filters {
+  display: grid; gap: 12px; align-items: end;
+  grid-template-columns: minmax(220px, 2fr) repeat(4, minmax(140px, 1fr));
+}
+.filters label {
+  display: flex; flex-direction: column; gap: 4px; min-width: 0;
+  font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .07em;
+}
+input, select {
+  box-sizing: border-box; width: 100%; height: var(--field-h); margin: 0;
+  font: 14px/1.2 var(--font-body); color: var(--fg); background-color: var(--field);
+  border: 1px solid var(--line); border-radius: 8px; padding: 0 12px;
+  text-transform: none; letter-spacing: normal;
+}
+input:hover, select:hover { border-color: var(--muted); }
+input:focus, select:focus { border-color: var(--accent); }
+select {
+  appearance: none; -webkit-appearance: none;
+  padding-right: 34px; cursor: pointer;
+  background-image: var(--chevron); background-repeat: no-repeat;
+  background-position: right 12px center; background-size: 12px 8px;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+select option { color: var(--fg); background: var(--field); }
+input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; }
+.count-line { grid-column: 1 / -1; color: var(--muted); font-size: 13px; }
+.keys p { margin: 0 0 12px; max-width: 70ch; }
+.key-grid { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; }
+.key-grid label { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; }
+.key-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+@media (max-width: 700px) { .key-grid { grid-template-columns: minmax(0, 1fr); } }
+.link-box { display: flex; flex-direction: column; gap: 4px; margin-top: 12px; }
+.link-box label { font-size: 12px; color: var(--muted); }
+.link-box input { font-family: var(--font-data); font-size: 12px; }
+[hidden] { display: none !important; }
+@media (max-width: 900px) { .filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } .filters label:first-child { grid-column: 1 / -1; } }
+@media (max-width: 480px) { .filters { grid-template-columns: minmax(0, 1fr); } }
+
+.table-box { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; min-width: 980px; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 600; position: sticky; top: 0; background: var(--surface); cursor: pointer; user-select: none; white-space: nowrap; }
+th[aria-sort="ascending"]::after { content: " ▲"; } th[aria-sort="descending"]::after { content: " ▼"; }
+tbody tr:hover { background: var(--accent-soft); }
+tbody tr:last-child td { border-bottom: 0; }
+.mono { font-family: var(--font-data); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.dim { color: var(--muted); font-size: 12px; }
+.device-id { display: block; max-width: 230px; overflow-wrap: anywhere; word-break: break-all; }
+.user b { font-weight: 600; }
+.pill { display: inline-block; padding: 1px 7px; border-radius: 999px; font: 500 11px var(--font-data); border: 1px solid var(--line); white-space: nowrap; }
+.pill.prod { color: var(--danger); border-color: currentColor; }
+.pill.uat { color: var(--warn); border-color: currentColor; }
+.pill.qa { color: var(--accent); border-color: currentColor; }
+.recency { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.empty { padding: 28px 16px; color: var(--muted); text-align: center; }
+footer { color: var(--muted); font-size: 12px; }
+@media (max-width: 640px) { h1 { font-size: 19px; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>PipeTrak React Login Monitor</h1>
+      <p class="sub">Latest app login per user (Firestore <span class="mono">react_login_logs</span>), plus earlier users found in the project backups (<span class="mono">&lt;project&gt;/&lt;userId&gt;/data</span>), per environment.</p>
+    </div>
+    <div class="actions">
+      <span class="stamp" id="stamp">Loading…</span>
+      <button id="keysBtn" type="button">Access keys</button>
+      <button id="copyLinkTop" type="button" hidden>Copy access link</button>
+      <button class="primary" id="refresh" type="button">Refresh</button>
+    </div>
+  </header>
+
+  <div class="panel link-box" id="linkBox" hidden>
+    <label for="linkOut">Access link: opens this dashboard with the saved keys on any device. Anyone with it can view the data, so keep it private.</label>
+    <input id="linkOut" type="text" readonly>
+    <span class="dim" id="linkNote" aria-live="polite"></span>
+  </div>
+
+  <section class="panel keys" id="keyPanel" hidden aria-label="Access keys">
+    <h2>Access keys</h2>
+    <p class="dim">Enter the Firebase web API key for each environment you want to see. Keys are saved only in this browser and are never part of this page. Ask the PipeTrak team for them.</p>
+    <form id="keyForm" class="key-grid">
+      <label for="key-PROD">PROD · pipetrakit<input id="key-PROD" type="password" autocomplete="off" spellcheck="false" placeholder="AIza…"></label>
+      <label for="key-UAT">UAT · pipetrakit-uat<input id="key-UAT" type="password" autocomplete="off" spellcheck="false" placeholder="AIza…"></label>
+      <label for="key-QA">QA · pipetrakit-qa<input id="key-QA" type="password" autocomplete="off" spellcheck="false" placeholder="AIza…"></label>
+      <div class="key-actions">
+        <button class="primary" type="submit">Save and load</button>
+        <button id="copyLink" type="button">Copy access link</button>
+        <button id="keyClear" type="button">Remove keys</button>
+        <span class="dim" id="keyNote" aria-live="polite"></span>
+      </div>
+    </form>
+  </section>
+
+  <div class="envs" id="envs" aria-live="polite"></div>
+
+  <section class="summary" id="summary" aria-label="Summary"></section>
+
+  <section class="breakdowns">
+    <div class="panel"><h2>By project</h2><div class="bars" id="byProject"></div></div>
+    <div class="panel"><h2>By platform</h2><div class="bars" id="byPlatform"></div></div>
+    <div class="panel"><h2>By app version</h2><div class="bars" id="byVersion"></div></div>
+  </section>
+
+  <section class="filters" aria-label="Filters">
+    <label for="q">Search
+      <input id="q" type="search" placeholder="User, name, device, project">
+    </label>
+    <label for="fEnv">Environment
+      <select id="fEnv"><option value="">All</option><option>PROD</option><option>UAT</option><option>QA</option></select>
+    </label>
+    <label for="fProject">Project
+      <select id="fProject"><option value="">All</option></select>
+    </label>
+    <label for="fPlatform">Platform
+      <select id="fPlatform"><option value="">All</option></select>
+    </label>
+    <label for="fActive">Last login
+      <select id="fActive">
+        <option value="">Any time</option>
+        <option value="1">Last 24 hours</option>
+        <option value="7">Last 7 days</option>
+        <option value="30">Last 30 days</option>
+      </select>
+    </label>
+    <label for="fSource">Data
+      <select id="fSource">
+        <option value="">All</option>
+        <option value="login">With login record</option>
+        <option value="backup">Backup only</option>
+      </select>
+    </label>
+    <span class="count-line" id="countLine"></span>
+  </section>
+
+  <div class="table-box">
+    <table>
+      <thead>
+        <tr>
+          <th data-key="userName">User</th>
+          <th data-key="env">Env</th>
+          <th data-key="projectCode">Project</th>
+          <th data-key="lastLogin" aria-sort="descending">Last login</th>
+          <th data-key="loginCount">Logins</th>
+          <th data-key="platform">Device</th>
+          <th data-key="appVersion">App</th>
+          <th data-key="deviceId">Device ID</th>
+          <th data-key="lastBackup">Backups</th>
+        </tr>
+      </thead>
+      <tbody id="rows"><tr><td colspan="9" class="empty">Loading login records…</td></tr></tbody>
+    </table>
+  </div>
+
+  <footer>Each user keeps only their latest login and a running login count, so this shows who is using the app and from where, not login history over time. Users marked "No login record yet" come from earlier backups only: their project and user ID are known, their name and device are not.</footer>
+</div>
+
+<script>
+// Firebase project ids. API keys are NOT stored in this file (it is hosted
+// publicly): each viewer enters them once under "Access keys" and they are
+// kept only in that viewer's browser (localStorage).
+const ENVIRONMENTS = [
+  { name: 'PROD', project: 'pipetrakit' },
+  { name: 'UAT',  project: 'pipetrakit-uat' },
+  { name: 'QA',   project: 'pipetrakit-qa' },
+];
+const KEY_STORE = 'pipetrak-react-login-monitor.keys';
+
+function loadKeys() {
+  try { return JSON.parse(localStorage.getItem(KEY_STORE) || '{}') || {}; } catch { return {}; }
+}
+function saveKeys(keys) {
+  try { localStorage.setItem(KEY_STORE, JSON.stringify(keys)); return true; } catch { return false; }
+}
+let accessKeys = loadKeys();
+
+// Access link: keys packed into the URL fragment (#access=…). The fragment is
+// never sent to the web server, so the keys stay out of the repo and server
+// logs. On open, they're saved to this browser and removed from the address
+// bar. Anyone holding the link can view the dashboard — treat it as a password.
+function encodeAccess(keys) {
+  const bytes = new TextEncoder().encode(JSON.stringify(keys));
+  let bin = '';
+  bytes.forEach((b) => (bin += String.fromCharCode(b)));
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function decodeAccess(token) {
+  const b64 = token.replace(/-/g, '+').replace(/_/g, '/');
+  const bin = atob(b64 + '='.repeat((4 - (b64.length % 4)) % 4));
+  const parsed = JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0))));
+  const keys = {};
+  ENVIRONMENTS.forEach((e) => { if (typeof parsed[e.name] === 'string' && parsed[e.name]) keys[e.name] = parsed[e.name]; });
+  return keys;
+}
+function accessLink() {
+  return `${location.origin}${location.pathname}#access=${encodeAccess(accessKeys)}`;
+}
+(function readAccessFromUrl() {
+  const m = location.hash.match(/^#access=([A-Za-z0-9_-]+)$/);
+  if (!m) return;
+  try {
+    const keys = decodeAccess(m[1]);
+    if (Object.keys(keys).length) { accessKeys = keys; saveKeys(keys); }
+  } catch { /* malformed link: fall through to the key form */ }
+  try { history.replaceState(null, '', location.pathname + location.search); } catch { location.hash = ''; }
+})();
+
+const state = { rows: [], envStatus: {}, sortKey: 'lastLogin', sortDir: -1 };
+const $ = (id) => document.getElementById(id);
+
+// Firestore REST values → plain JS.
+function fsValue(v) {
+  if (!v) return null;
+  if ('stringValue' in v) return v.stringValue;
+  if ('integerValue' in v) return Number(v.integerValue);
+  if ('doubleValue' in v) return v.doubleValue;
+  if ('booleanValue' in v) return v.booleanValue;
+  if ('timestampValue' in v) return v.timestampValue;
+  if ('nullValue' in v) return null;
+  return null;
+}
+
+// One collection-group query per environment: every `users` subcollection,
+// kept only where the path is PipeTrakReact-<project>/react_login_logs/users/<user>.
+async function fetchEnv(env) {
+  const key = accessKeys[env.name];
+  if (!key) throw new Error('No access key — add it under Access keys');
+  const url = `https://firestore.googleapis.com/v1/projects/${env.project}/databases/(default)/documents:runQuery?key=${encodeURIComponent(key)}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'users', allDescendants: true }] } }),
+  });
+  const body = await res.json();
+  if (!res.ok || !Array.isArray(body)) {
+    const msg = (body && (body.error?.message || body[0]?.error?.message)) || `HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+  return body
+    .map((x) => x.document)
+    .filter((d) => d && d.name.includes('/react_login_logs/users/'))
+    .map((d) => {
+      const f = {};
+      for (const [k, v] of Object.entries(d.fields || {})) f[k] = fsValue(v);
+      const collection = d.name.split('/documents/')[1].split('/')[0];
+      const last = f.lastLoginTimeServer || f.loginTime || null;
+      return {
+        env: env.name,
+        collection,
+        userName: f.userName || d.name.split('/').pop(),
+        fullName: f.fullName || '',
+        userId: f.userId || '',
+        projectCode: f.projectCode || collection.replace(/^PipeTrakReact-/, ''),
+        platform: f.platform || '',
+        deviceOS: f.deviceOS || '',
+        deviceName: f.deviceName || '',
+        deviceId: f.deviceId || '',
+        appVersion: f.appVersion || '',
+        versionCode: f.versionCode || '',
+        isRelogin: !!f.isRelogin,
+        loginCount: Number(f.loginCount) || 0,
+        lastLogin: last ? new Date(last) : null,
+        source: 'login',
+        backupCount: 0,
+        lastBackup: null,
+      };
+    });
+}
+
+// Earlier data: the backup documents the app already writes at
+// <project>/<userId>/data/<doc>. The query asks only for the small descriptive fields,
+// never the large record payload. Flutter's own backups sit under PipeTrak-<project>
+// and are skipped.
+const BACKUP_LIMIT = 50000;
+const BACKUP_FIELDS = ['userId', 'name', 'dateTime', 'date_time', 'deviceId', 'deviceName', 'deviceOS', 'versionCode', 'device_info'];
+
+// Firestore REST value (including maps and arrays) → plain JS.
+function fsAny(v) {
+  if (!v) return null;
+  if ('mapValue' in v) {
+    const o = {};
+    for (const [k, x] of Object.entries(v.mapValue.fields || {})) o[k] = fsAny(x);
+    return o;
+  }
+  if ('arrayValue' in v) return (v.arrayValue.values || []).map(fsAny);
+  return fsValue(v);
+}
+
+function parseInfo(x) {
+  if (typeof x === 'string') { try { x = JSON.parse(x); } catch { return {}; } }
+  if (Array.isArray(x)) x = x[0];
+  return x && typeof x === 'object' ? x : {};
+}
+
+// Android backups write userId (the login name), deviceId, deviceName, deviceOS and
+// versionCode (the app version name). iOS backups write name and a device_info map.
+function backupMeta(f) {
+  const info = parseInfo(f.device_info);
+  const pick = (names) => {
+    for (const n of names) {
+      const hit = Object.keys(info).find((k) => k.toLowerCase() === n.toLowerCase());
+      if (hit && info[hit] !== '' && info[hit] != null && typeof info[hit] !== 'object') return String(info[hit]);
+    }
+    return '';
+  };
+  const ios = f.name !== undefined || f.device_info !== undefined || f.date_time !== undefined;
+  const android = f.userId !== undefined || f.deviceName !== undefined;
+  return {
+    userName: String(f.userId || f.name || ''),
+    deviceId: String(f.deviceId || pick(['deviceId', 'udid', 'identifierForVendor', 'uuid'])),
+    deviceName: String(f.deviceName || pick(['deviceName', 'name', 'model', 'deviceModel', 'machine'])),
+    deviceOS: String(f.deviceOS || pick(['systemVersion', 'osVersion', 'os', 'deviceOS'])),
+    appVersion: String(f.versionCode || pick(['appVersion', 'version', 'app_version', 'CFBundleShortVersionString'])),
+    platform: ios ? 'iOS' : android ? 'Android' : '',
+  };
+}
+
+async function fetchBackups(env) {
+  const key = accessKeys[env.name];
+  const url = `https://firestore.googleapis.com/v1/projects/${env.project}/databases/(default)/documents:runQuery?key=${encodeURIComponent(key)}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ structuredQuery: {
+      from: [{ collectionId: 'data', allDescendants: true }],
+      select: { fields: BACKUP_FIELDS.map((fieldPath) => ({ fieldPath })) },
+      limit: BACKUP_LIMIT,
+    } }),
+  });
+  const body = await res.json();
+  if (!res.ok || !Array.isArray(body)) {
+    const msg = (body && (body.error?.message || body[0]?.error?.message)) || `HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+  const groups = new Map();
+  let docs = 0;
+  body.forEach((x) => {
+    const d = x.document;
+    if (!d) return;
+    docs++;
+    const parts = d.name.split('/documents/')[1].split('/');
+    if (parts.length !== 4 || parts[2] !== 'data' || /^PipeTrak(React)?-/.test(parts[0])) return;
+    const gk = `${parts[0].toLowerCase()}|${parts[1]}`;
+    const t = d.updateTime ? new Date(d.updateTime) : null;
+    const g = groups.get(gk) || { project: parts[0], userId: parts[1], count: 0, last: null, meta: {}, metaAt: {} };
+    g.count++;
+    if (t && (!g.last || t > g.last)) g.last = t;
+    // For each detail keep the value from the newest document that has it.
+    const f = {};
+    for (const [k, v] of Object.entries(d.fields || {})) f[k] = fsAny(v);
+    const m = backupMeta(f);
+    for (const k of Object.keys(m)) {
+      if (m[k] && (!g.metaAt[k] || (t && t >= g.metaAt[k]))) { g.meta[k] = m[k]; g.metaAt[k] = t || new Date(0); }
+    }
+    groups.set(gk, g);
+  });
+  return { groups: [...groups.values()], truncated: docs >= BACKUP_LIMIT };
+}
+
+// Join backups to login records on project + user ID; backup-only users become extra rows
+// filled with whatever the backups recorded (name, device, OS, app version).
+function mergeBackups(rows, backups, env) {
+  if (!backups || backups.error) return rows;
+  const byKey = new Map();
+  rows.forEach((r) => { if (r.userId) byKey.set(`${r.projectCode.toLowerCase()}|${r.userId}`, r); });
+  const out = rows.slice();
+  backups.groups.forEach((g) => {
+    const hit = byKey.get(`${g.project.toLowerCase()}|${g.userId}`);
+    if (hit) {
+      hit.backupCount = g.count;
+      hit.lastBackup = g.last;
+      hit.source = 'both';
+      return;
+    }
+    const m = g.meta;
+    out.push({
+      env: env.name, collection: g.project,
+      userName: m.userName || `User ID ${g.userId}`, fullName: 'No login record yet',
+      userId: m.userName ? g.userId : '', projectCode: g.project,
+      platform: m.platform || '', deviceOS: m.deviceOS || '', deviceName: m.deviceName || '', deviceId: m.deviceId || '',
+      appVersion: m.appVersion || '', versionCode: '', isRelogin: false, loginCount: 0, lastLogin: null,
+      source: 'backup', backupCount: g.count, lastBackup: g.last,
+    });
+  });
+  return out;
+}
+
+async function load() {
+  updateLinkButton();
+  if (!ENVIRONMENTS.some((e) => accessKeys[e.name])) {
+    showKeyPanel(true);
+    state.rows = [];
+    ENVIRONMENTS.forEach((e) => (state.envStatus[e.name] = { kind: '', msg: 'No access key' }));
+    $('stamp').textContent = 'Add access keys to load data';
+    fillFilterOptions();
+    render();
+    return;
+  }
+  const btn = $('refresh');
+  btn.disabled = true;
+  $('stamp').textContent = 'Loading…';
+  ENVIRONMENTS.forEach((e) => (state.envStatus[e.name] = { kind: 'load', msg: 'Loading' }));
+  renderEnvs();
+  const results = await Promise.allSettled(ENVIRONMENTS.map(async (env) => ({
+    logins: await fetchEnv(env),
+    // A backup problem must not hide the login records.
+    backups: await fetchBackups(env).catch((e) => ({ error: e.message })),
+  })));
+  state.rows = [];
+  results.forEach((r, i) => {
+    const env = ENVIRONMENTS[i];
+    if (!accessKeys[env.name]) {
+      state.envStatus[env.name] = { kind: '', msg: 'No access key' };
+    } else if (r.status === 'fulfilled') {
+      const merged = mergeBackups(r.value.logins, r.value.backups, env);
+      state.rows.push(...merged);
+      const note = r.value.backups.error ? ` · backups: ${r.value.backups.error}`
+        : r.value.backups.truncated ? ` · first ${BACKUP_LIMIT} backup docs only` : '';
+      state.envStatus[env.name] = { kind: 'ok', msg: `${merged.length} user${merged.length === 1 ? '' : 's'}${note}` };
+    } else {
+      state.envStatus[env.name] = { kind: 'err', msg: `Could not load: ${r.reason.message}` };
+    }
+  });
+  $('stamp').textContent = 'Updated ' + new Date().toLocaleString();
+  btn.disabled = false;
+  fillFilterOptions();
+  render();
+}
+
+function renderEnvs() {
+  $('envs').innerHTML = '';
+  ENVIRONMENTS.forEach((e) => {
+    const s = state.envStatus[e.name] || { kind: '', msg: '' };
+    const el = document.createElement('div');
+    el.className = 'env';
+    el.innerHTML = `<span class="dot ${s.kind}"></span><b></b><span class="msg"></span>`;
+    el.querySelector('b').textContent = e.name;
+    el.querySelector('.msg').textContent = s.msg;
+    el.title = e.project;
+    $('envs').appendChild(el);
+  });
+}
+
+function fillFilterOptions() {
+  const fill = (id, values) => {
+    const sel = $(id), cur = sel.value;
+    sel.length = 1;
+    [...new Set(values.filter(Boolean))].sort().forEach((v) => sel.add(new Option(v, v)));
+    sel.value = [...sel.options].some((o) => o.value === cur) ? cur : '';
+  };
+  fill('fProject', state.rows.map((r) => r.projectCode));
+  fill('fPlatform', state.rows.map((r) => r.platform));
+}
+
+function daysAgo(d) { return d ? (Date.now() - d.getTime()) / 86400000 : Infinity; }
+
+function relTime(d) {
+  if (!d) return 'never';
+  const s = Math.round((Date.now() - d.getTime()) / 1000);
+  if (s < 60) return 'just now';
+  const m = Math.round(s / 60); if (m < 60) return `${m} min ago`;
+  const h = Math.round(m / 60); if (h < 24) return `${h} h ago`;
+  const days = Math.round(h / 24); if (days < 30) return `${days} d ago`;
+  return d.toLocaleDateString();
+}
+
+function recencyClass(d) {
+  const a = daysAgo(d);
+  return a <= 1 ? 'ok' : a <= 7 ? 'load' : '';
+}
+
+function filtered() {
+  const q = $('q').value.trim().toLowerCase();
+  const env = $('fEnv').value, proj = $('fProject').value, plat = $('fPlatform').value, act = Number($('fActive').value) || 0, src = $('fSource').value;
+  return state.rows.filter((r) =>
+    (!env || r.env === env) &&
+    (!proj || r.projectCode === proj) &&
+    (!plat || r.platform === plat) &&
+    (!act || daysAgo(r.lastLogin) <= act) &&
+    (!src || (src === 'backup' ? r.source === 'backup' : r.source !== 'backup')) &&
+    (!q || [r.userName, r.fullName, r.userId, r.deviceName, r.deviceId, r.projectCode].join(' ').toLowerCase().includes(q)));
+}
+
+function sortRows(rows) {
+  const { sortKey: k, sortDir: dir } = state;
+  return rows.slice().sort((a, b) => {
+    let x = a[k], y = b[k];
+    if (x instanceof Date || y instanceof Date) { x = x ? x.getTime() : 0; y = y ? y.getTime() : 0; }
+    if (typeof x === 'number' && typeof y === 'number') return (x - y) * dir;
+    return String(x || '').localeCompare(String(y || ''), undefined, { numeric: true }) * dir;
+  });
+}
+
+function metric(label, value, note) {
+  return `<div class="metric"><span class="label">${label}</span><span class="value">${value}</span><span class="note">${note}</span></div>`;
+}
+
+function renderSummary(rows) {
+  const n = rows.length;
+  const d1 = rows.filter((r) => daysAgo(r.lastLogin) <= 1).length;
+  const d7 = rows.filter((r) => daysAgo(r.lastLogin) <= 7).length;
+  const d30 = rows.filter((r) => daysAgo(r.lastLogin) <= 30).length;
+  const logins = rows.reduce((s, r) => s + r.loginCount, 0);
+  const projects = new Set(rows.map((r) => r.projectCode)).size;
+  $('summary').innerHTML =
+    metric('Users', n, `${projects} project${projects === 1 ? '' : 's'}`) +
+    metric('Active 24 h', d1, 'last login in the past day') +
+    metric('Active 7 days', d7, 'last login this week') +
+    metric('Active 30 days', d30, 'last login this month') +
+    metric('Total logins', logins, 'sum of login counts');
+}
+
+function renderBars(id, rows, keyFn) {
+  const counts = new Map();
+  rows.forEach((r) => { const k = keyFn(r) || 'Unknown'; counts.set(k, (counts.get(k) || 0) + 1); });
+  const list = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const max = Math.max(1, ...list.map((x) => x[1]));
+  const box = $(id);
+  box.innerHTML = list.length ? '' : '<span class="dim">No data</span>';
+  list.forEach(([name, c]) => {
+    const el = document.createElement('div');
+    el.className = 'bar';
+    el.innerHTML = `<span class="name"></span><span class="count">${c}</span><span class="track"><span class="fill" style="width:${(c / max) * 100}%"></span></span>`;
+    el.querySelector('.name').textContent = name;
+    box.appendChild(el);
+  });
+}
+
+// "iOS 18.7.2" already names the platform; "15" (Android) doesn't.
+function osLabel(r) {
+  const os = r.deviceOS || '';
+  if (!r.platform) return os;
+  return os.toLowerCase().startsWith(r.platform.toLowerCase()) ? os : `${r.platform} ${os}`.trim();
+}
+
+function cell(html) { const td = document.createElement('td'); td.innerHTML = html; return td; }
+function text(s) { const span = document.createElement('span'); span.textContent = s; return span.innerHTML; }
+
+function renderTable(rows) {
+  const body = $('rows');
+  body.innerHTML = '';
+  if (!rows.length) {
+    const msg = state.rows.length
+      ? 'No users match these filters.'
+      : !ENVIRONMENTS.some((e) => accessKeys[e.name])
+        ? 'Add access keys (button at the top) to load login records.'
+        : 'No login records yet. Users appear here after they log in with an app build that records logins.';
+    body.innerHTML = `<tr><td colspan="9" class="empty">${msg}</td></tr>`;
+    return;
+  }
+  sortRows(rows).forEach((r) => {
+    const tr = document.createElement('tr');
+    tr.append(
+      cell(`<div class="user"><b>${text(r.userName)}</b></div><div class="dim">${text(r.fullName || '—')}${r.userId ? ' · ID ' + text(r.userId) : ''}</div>`),
+      cell(`<span class="pill ${r.env.toLowerCase()}">${r.env}</span>`),
+      cell(`<span class="mono">${text(r.projectCode)}</span>`),
+      cell(`<span class="recency"><span class="dot ${recencyClass(r.lastLogin)}"></span>${r.lastLogin ? relTime(r.lastLogin) : 'No login yet'}</span><div class="dim mono">${r.lastLogin ? r.lastLogin.toLocaleString() : ''}${r.isRelogin ? ' · re-login' : ''}</div>`),
+      cell(`<span class="mono">${r.loginCount}</span>`),
+      cell(`${text(r.deviceName || '—')}<div class="dim">${text(osLabel(r))}</div>`),
+      cell(`<span class="mono">${text(r.appVersion || '—')}</span><div class="dim mono">build ${text(r.versionCode || '—')}</div>`),
+      cell(`<span class="mono dim device-id">${text(r.deviceId || '—')}</span>`),
+      cell(r.backupCount ? `<span class="mono">${r.backupCount} doc${r.backupCount === 1 ? '' : 's'}</span><div class="dim mono">${r.lastBackup ? relTime(r.lastBackup) : ''}</div>` : '<span class="dim">—</span>'),
+    );
+    body.appendChild(tr);
+  });
+}
+
+function render() {
+  renderEnvs();
+  const rows = filtered();
+  renderSummary(rows);
+  renderBars('byProject', rows, (r) => `${r.projectCode} (${r.env})`);
+  renderBars('byPlatform', rows.filter((r) => r.platform), (r) => r.platform);
+  renderBars('byVersion', rows.filter((r) => r.appVersion), (r) => r.versionCode ? `${r.appVersion} (${r.versionCode})` : r.appVersion);
+  renderTable(rows);
+  $('countLine').textContent = `Showing ${rows.length} of ${state.rows.length} users`;
+}
+
+document.querySelectorAll('th[data-key]').forEach((th) => {
+  th.tabIndex = 0;
+  const sort = () => {
+    const k = th.dataset.key;
+    state.sortDir = state.sortKey === k ? -state.sortDir : (k === 'lastLogin' || k === 'loginCount' || k === 'lastBackup' ? -1 : 1);
+    state.sortKey = k;
+    document.querySelectorAll('th[data-key]').forEach((h) => h.removeAttribute('aria-sort'));
+    th.setAttribute('aria-sort', state.sortDir === 1 ? 'ascending' : 'descending');
+    render();
+  };
+  th.addEventListener('click', sort);
+  th.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); sort(); } });
+});
+['q', 'fEnv', 'fProject', 'fPlatform', 'fActive', 'fSource'].forEach((id) => $(id).addEventListener('input', render));
+$('refresh').addEventListener('click', load);
+
+// Access keys panel
+function showKeyPanel(open) {
+  const panel = $('keyPanel');
+  panel.hidden = !open;
+  if (open) ENVIRONMENTS.forEach((e) => ($(`key-${e.name}`).value = accessKeys[e.name] || ''));
+}
+$('keysBtn').addEventListener('click', () => showKeyPanel($('keyPanel').hidden));
+$('keyForm').addEventListener('submit', (ev) => {
+  ev.preventDefault();
+  const next = {};
+  ENVIRONMENTS.forEach((e) => { const v = $(`key-${e.name}`).value.trim(); if (v) next[e.name] = v; });
+  accessKeys = next;
+  const stored = saveKeys(next);
+  $('keyNote').textContent = stored
+    ? 'Saved in this browser.'
+    : 'This browser blocks storage, so the keys last only until you close the page.';
+  if (Object.keys(next).length) showKeyPanel(false);
+  load();
+});
+async function copyAccessLink() {
+  if (!Object.keys(accessKeys).length) {
+    $('keyNote').textContent = 'Save at least one key first.';
+    return;
+  }
+  const link = accessLink();
+  $('linkOut').value = link;
+  $('linkBox').hidden = false;
+  try {
+    await navigator.clipboard.writeText(link);
+    $('linkNote').textContent = 'Copied to clipboard.';
+  } catch {
+    $('linkNote').textContent = 'Select the link above and copy it.';
+  }
+  $('linkOut').focus();
+  $('linkOut').select();
+}
+function updateLinkButton() {
+  $('copyLinkTop').hidden = !Object.keys(accessKeys).length;
+}
+$('copyLink').addEventListener('click', copyAccessLink);
+$('copyLinkTop').addEventListener('click', copyAccessLink);
+$('linkOut').addEventListener('focus', () => $('linkOut').select());
+$('keyClear').addEventListener('click', () => {
+  $('linkBox').hidden = true;
+  $('linkOut').value = '';
+  accessKeys = {};
+  saveKeys({});
+  ENVIRONMENTS.forEach((e) => ($(`key-${e.name}`).value = ''));
+  $('keyNote').textContent = 'Keys removed from this browser.';
+  load();
+});
+load();
+</script>
+</body>
+</html>
