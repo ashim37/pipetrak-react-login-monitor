@@ -568,7 +568,9 @@ function fillFilterOptions() {
     [...new Set(values.filter(Boolean))].sort().forEach((v) => sel.add(new Option(v, v)));
     sel.value = [...sel.options].some((o) => o.value === cur) ? cur : '';
   };
-  fill('fProject', state.rows.map((r) => r.projectCode));
+  // Project choices follow the selected environment; a project that no longer applies resets to All.
+  const env = $('fEnv').value;
+  fill('fProject', state.rows.filter((r) => !env || r.env === env).map((r) => r.projectCode));
   fill('fPlatform', state.rows.map((r) => r.platform));
 }
 
@@ -693,6 +695,7 @@ function renderTable(rows) {
 }
 
 function render() {
+  fillFilterOptions();
   renderEnvs();
   const rows = filtered();
   renderSummary(rows);
