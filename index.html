@@ -219,7 +219,7 @@ footer { color: var(--muted); font-size: 12px; }
     <label for="fPlatform">Platform
       <select id="fPlatform"><option value="">All</option></select>
     </label>
-    <label for="fActive">Last login
+    <label for="fActive">Last active
       <select id="fActive">
         <option value="">Any time</option>
         <option value="1">Last 24 hours</option>
@@ -558,6 +558,13 @@ function fillFilterOptions() {
 
 function daysAgo(d) { return d ? (Date.now() - d.getTime()) / 86400000 : Infinity; }
 
+// Most recent sign of life: the later of the last login and the last backup, so users known
+// only from backups still count as active when they were recently seen.
+function lastSeen(r) {
+  const t = [r.lastLogin, r.lastBackup].filter(Boolean).map((d) => d.getTime());
+  return t.length ? new Date(Math.max(...t)) : null;
+}
+
 function relTime(d) {
   if (!d) return 'never';
   const s = Math.round((Date.now() - d.getTime()) / 1000);
@@ -580,7 +587,7 @@ function filtered() {
     (!env || r.env === env) &&
     (!proj || r.projectCode === proj) &&
     (!plat || r.platform === plat) &&
-    (!act || daysAgo(r.lastLogin) <= act) &&
+    (!act || daysAgo(lastSeen(r)) <= act) &&
     (!src || (src === 'backup' ? r.source === 'backup' : r.source !== 'backup')) &&
     (!q || [r.userName, r.fullName, r.userId, r.deviceName, r.deviceId, r.projectCode].join(' ').toLowerCase().includes(q)));
 }
@@ -601,16 +608,16 @@ function metric(label, value, note) {
 
 function renderSummary(rows) {
   const n = rows.length;
-  const d1 = rows.filter((r) => daysAgo(r.lastLogin) <= 1).length;
-  const d7 = rows.filter((r) => daysAgo(r.lastLogin) <= 7).length;
-  const d30 = rows.filter((r) => daysAgo(r.lastLogin) <= 30).length;
+  const d1 = rows.filter((r) => daysAgo(lastSeen(r)) <= 1).length;
+  const d7 = rows.filter((r) => daysAgo(lastSeen(r)) <= 7).length;
+  const d30 = rows.filter((r) => daysAgo(lastSeen(r)) <= 30).length;
   const logins = rows.reduce((s, r) => s + r.loginCount, 0);
   const projects = new Set(rows.map((r) => r.projectCode)).size;
   $('summary').innerHTML =
     metric('Users', n, `${projects} project${projects === 1 ? '' : 's'}`) +
-    metric('Active 24 h', d1, 'last login in the past day') +
-    metric('Active 7 days', d7, 'last login this week') +
-    metric('Active 30 days', d30, 'last login this month') +
+    metric('Active 24 h', d1, 'login or backup in the past day') +
+    metric('Active 7 days', d7, 'login or backup this week') +
+    metric('Active 30 days', d30, 'login or backup this month') +
     metric('Total logins', logins, 'sum of login counts');
 }
 
