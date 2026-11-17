@@ -396,10 +396,25 @@ function parseInfo(x) {
   return x && typeof x === 'object' ? x : {};
 }
 
+// iOS stores device_info.deviceInfo as one text line such as
+// "iOS: 26.6.1, Device: iPhone, Model: iPhone14,5, App Version: 9.37 (5)".
+// Split on commas that start a new "Label:" so values like "iPhone14,5" stay whole.
+function parseInfoText(t) {
+  const out = {};
+  if (typeof t !== 'string') return out;
+  t.split(/,\s*(?=[A-Za-z][A-Za-z ]*:\s)/).forEach((part) => {
+    const i = part.indexOf(':');
+    if (i > 0) out[part.slice(0, i).trim().toLowerCase()] = part.slice(i + 1).trim();
+  });
+  return out;
+}
+
 // Android backups write userId (the login name), deviceId, deviceName, deviceOS and
-// versionCode (the app version name). iOS backups write name and a device_info map.
+// versionCode (the app version name). iOS backups write name and a device_info map
+// whose deviceInfo text holds the OS, device, model and app version.
 function backupMeta(f) {
   const info = parseInfo(f.device_info);
+  const text = parseInfoText(info.deviceInfo ?? info.device_info ?? (typeof f.device_info === 'string' ? f.device_info : ''));
   const pick = (names) => {
     for (const n of names) {
       const hit = Object.keys(info).find((k) => k.toLowerCase() === n.toLowerCase());
@@ -409,12 +424,13 @@ function backupMeta(f) {
   };
   const ios = f.name !== undefined || f.device_info !== undefined || f.date_time !== undefined;
   const android = f.userId !== undefined || f.deviceName !== undefined;
+  const textOS = text.ios ? 'iOS ' + text.ios : text.os || '';
   return {
     userName: String(f.userId || f.name || ''),
     deviceId: String(f.deviceId || pick(['deviceId', 'udid', 'identifierForVendor', 'uuid'])),
-    deviceName: String(f.deviceName || pick(['deviceName', 'name', 'model', 'deviceModel', 'machine'])),
-    deviceOS: String(f.deviceOS || pick(['systemVersion', 'osVersion', 'os', 'deviceOS'])),
-    appVersion: String(f.versionCode || pick(['appVersion', 'version', 'app_version', 'CFBundleShortVersionString'])),
+    deviceName: String(f.deviceName || text.model || text.device || pick(['deviceName', 'name', 'model', 'deviceModel', 'machine'])),
+    deviceOS: String(f.deviceOS || textOS || pick(['systemVersion', 'osVersion', 'os', 'deviceOS'])),
+    appVersion: String(f.versionCode || text['app version'] || pick(['appVersion', 'version', 'app_version', 'CFBundleShortVersionString'])),
     platform: ios ? 'iOS' : android ? 'Android' : '',
   };
 }
